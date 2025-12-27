@@ -9,6 +9,8 @@ torchvision>=0.15.0
 transformers>=4.35.0
 kraken>=4.3.0
 Pillow>=10.0.0
+accelerate>=0.25.0
+qwen-vl-utils>=0.0.2
 
 # Base de données
 sqlmodel>=0.0.14
