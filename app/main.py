@@ -363,7 +363,7 @@ def show_transcription_step():
     st.info(f"Device: **{get_device().upper()}** | Modèle: **{AVAILABLE_MODELS[selected_model]['name']}** | Lignes: **{len(lines)}**")
 
     if selected_model == "qwen":
-        st.warning("Qwen2-VL-7B nécessite ~16 Go de RAM/VRAM. Le premier chargement peut prendre plusieurs minutes.")
+        st.warning("Qwen2-VL-2B nécessite ~6 Go de RAM. Le premier chargement télécharge ~4 Go.")
 
     if st.button("Lancer la transcription", type="primary"):
         model_name = AVAILABLE_MODELS[selected_model]['name']

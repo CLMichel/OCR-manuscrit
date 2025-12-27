@@ -15,13 +15,13 @@ _current_model = "trocr"  # "trocr" ou "qwen"
 AVAILABLE_MODELS = {
     "trocr": {
         "name": "TrOCR French",
-        "description": "Modèle spécialisé manuscrit français (rapide)",
+        "description": "Spécialisé manuscrit français, rapide (~2 Go)",
         "model_id": "agomberto/trocr-large-handwritten-fr"
     },
     "qwen": {
-        "name": "Qwen2-VL 7B",
-        "description": "Modèle vision-language généraliste (meilleur mais plus lent)",
-        "model_id": "Qwen/Qwen2-VL-7B-Instruct"
+        "name": "Qwen2-VL 2B",
+        "description": "Vision-language généraliste, plus lent (~6 Go)",
+        "model_id": "Qwen/Qwen2-VL-2B-Instruct"
     }
 }
 
