@@ -1,0 +1,38 @@
+# HTR-Local "Manuscrits 1900"
+# Python 3.10+ requis
+
+# PyTorch avec support MPS (Apple Silicon)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# OCR & Segmentation
+transformers>=4.35.0
+kraken>=4.3.0
+Pillow>=10.0.0
+
+# Base de données
+sqlmodel>=0.0.14
+sqlalchemy>=2.0.0
+
+# Interface web
+streamlit>=1.29.0
+
+# LLM local
+ollama>=0.1.0
+
+# Export PDF
+ocrmypdf>=16.0.0
+reportlab>=4.0.0
+
+# Utilitaires
+python-multipart>=0.0.6
+aiofiles>=23.0.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+
+# LLM
+openai>=1.0.0
+python-dotenv>=1.0.0
+
+# Développement
+pytest>=7.4.0
