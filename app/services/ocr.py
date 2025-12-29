@@ -77,10 +77,13 @@ def get_qwen_model_and_processor():
         model_name = AVAILABLE_MODELS["qwen"]["model_id"]
 
         _qwen_processor = AutoProcessor.from_pretrained(model_name)
+
+        # Forcer CPU pour éviter les problèmes de mémoire MPS
+        # MPS n'a pas assez de VRAM partagée pour Qwen2-VL
         _qwen_model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_name,
-            torch_dtype=torch.float16 if get_device() != "cpu" else torch.float32,
-            device_map="auto"
+            torch_dtype=torch.float32,
+            device_map="cpu"
         )
 
     return _qwen_model, _qwen_processor
@@ -131,9 +134,6 @@ def transcribe_line_qwen(image: Image.Image) -> dict:
         padding=True
     )
 
-    # Move to device
-    inputs = {k: v.to(model.device) for k, v in inputs.items()}
-
     with torch.no_grad():
         generated_ids = model.generate(**inputs, max_new_tokens=128)
 
@@ -181,9 +181,6 @@ Réponds uniquement avec le texte transcrit, sans commentaire."""}
         return_tensors="pt",
         padding=True
     )
-
-    # Move to device
-    inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
     with torch.no_grad():
         generated_ids = model.generate(**inputs, max_new_tokens=2048)
