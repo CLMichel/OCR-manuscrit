@@ -22,7 +22,7 @@ except ImportError as e:
     SEGMENTATION_ERROR = str(e)
 
 # Import du service OCR
-from app.services.ocr import transcribe_from_segmentation, get_device, AVAILABLE_MODELS
+from app.services.ocr import transcribe_from_segmentation, get_device, AVAILABLE_MODELS, transcribe_full_page_qwen
 
 # Import du service LLM
 from app.services.llm import correct_transcriptions, correct_full_text, summarize_text
@@ -360,34 +360,78 @@ def show_transcription_step():
         horizontal=True
     )
 
-    st.info(f"Device: **{get_device().upper()}** | Modèle: **{AVAILABLE_MODELS[selected_model]['name']}** | Lignes: **{len(lines)}**")
-
+    # Option page entière pour Qwen
+    full_page_mode = False
     if selected_model == "qwen":
         st.warning("Qwen2-VL-2B nécessite ~6 Go de RAM. Le premier chargement télécharge ~4 Go.")
+        full_page_mode = st.checkbox(
+            "Mode page entière (recommandé)",
+            value=True,
+            help="Transcrit toute la page d'un coup au lieu de ligne par ligne. Meilleur contexte, meilleurs résultats."
+        )
+
+    if full_page_mode:
+        st.info(f"Device: **{get_device().upper()}** | Modèle: **{AVAILABLE_MODELS[selected_model]['name']}** | Mode: **Page entière**")
+    else:
+        st.info(f"Device: **{get_device().upper()}** | Modèle: **{AVAILABLE_MODELS[selected_model]['name']}** | Lignes: **{len(lines)}**")
 
     if st.button("Lancer la transcription", type="primary"):
         model_name = AVAILABLE_MODELS[selected_model]['name']
-        progress_bar = st.progress(0, text=f"Chargement du modèle {model_name}...")
 
-        def update_progress(current, total):
-            progress_bar.progress(current / total, text=f"Transcription ligne {current}/{total}")
+        # Mode page entière
+        if full_page_mode and selected_model == "qwen":
+            with st.spinner(f"Transcription de la page avec {model_name}..."):
+                try:
+                    full_text = transcribe_full_page_qwen(image)
 
-        try:
-            transcriptions = transcribe_from_segmentation(
-                image, segmentation, model_key=selected_model, progress_callback=update_progress
-            )
-            st.session_state.transcriptions = transcriptions
-            progress_bar.progress(1.0, text="Transcription terminée !")
-            st.success(f"{len(transcriptions)} lignes transcrites")
+                    # Créer des "transcriptions" factices pour compatibilité
+                    # On split par ligne pour avoir un format cohérent
+                    text_lines = full_text.split('\n')
+                    transcriptions = []
+                    for i, text in enumerate(text_lines):
+                        if text.strip():
+                            transcriptions.append({
+                                "line_number": i + 1,
+                                "text": text,
+                                "confidence": None,
+                                "bounding_box": {}  # Pas de bbox en mode page entière
+                            })
 
-            # Sauvegarder en base
-            if st.session_state.current_page_id:
-                save_lines_to_db(transcriptions, st.session_state.current_page_id)
-                update_page_status(st.session_state.current_page_id, PageStatus.TRANSCRIBED)
+                    st.session_state.transcriptions = transcriptions
+                    st.success(f"Page transcrite ! {len(transcriptions)} lignes détectées.")
 
-        except Exception as e:
-            st.error(f"Erreur de transcription: {e}")
-            return
+                    # Sauvegarder en base
+                    if st.session_state.current_page_id:
+                        save_lines_to_db(transcriptions, st.session_state.current_page_id)
+                        update_page_status(st.session_state.current_page_id, PageStatus.TRANSCRIBED)
+
+                except Exception as e:
+                    st.error(f"Erreur de transcription: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+        else:
+            # Mode ligne par ligne
+            progress_bar = st.progress(0, text=f"Chargement du modèle {model_name}...")
+
+            def update_progress(current, total):
+                progress_bar.progress(current / total, text=f"Transcription ligne {current}/{total}")
+
+            try:
+                transcriptions = transcribe_from_segmentation(
+                    image, segmentation, model_key=selected_model, progress_callback=update_progress
+                )
+                st.session_state.transcriptions = transcriptions
+                progress_bar.progress(1.0, text="Transcription terminée !")
+                st.success(f"{len(transcriptions)} lignes transcrites")
+
+                # Sauvegarder en base
+                if st.session_state.current_page_id:
+                    save_lines_to_db(transcriptions, st.session_state.current_page_id)
+                    update_page_status(st.session_state.current_page_id, PageStatus.TRANSCRIBED)
+
+            except Exception as e:
+                st.error(f"Erreur de transcription: {e}")
+                return
 
     if st.session_state.transcriptions:
         st.subheader("Résultats")
@@ -396,19 +440,25 @@ def show_transcription_step():
 
         for trans in st.session_state.transcriptions:
             line_num = trans["line_number"]
-            bbox = trans["bounding_box"]
-            margin = 5
-            left = max(0, bbox["x"] - margin)
-            top = max(0, bbox["y"] - margin)
-            right = min(image.width, bbox["x"] + bbox["width"] + margin)
-            bottom = min(image.height, bbox["y"] + bbox["height"] + margin)
-            line_image = image.crop((left, top, right, bottom))
+            bbox = trans.get("bounding_box", {})
 
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.image(line_image, caption=f"Ligne {line_num}", width="stretch")
-            with col2:
-                st.text_area(f"Texte ligne {line_num}", value=trans["text"], key=f"text_line_{line_num}", height=68)
+            # Si on a une bounding box, afficher l'extrait d'image
+            if bbox and bbox.get("x") is not None:
+                margin = 5
+                left = max(0, bbox["x"] - margin)
+                top = max(0, bbox["y"] - margin)
+                right = min(image.width, bbox["x"] + bbox["width"] + margin)
+                bottom = min(image.height, bbox["y"] + bbox["height"] + margin)
+                line_image = image.crop((left, top, right, bottom))
+
+                col1, col2 = st.columns([1, 2])
+                with col1:
+                    st.image(line_image, caption=f"Ligne {line_num}", width="stretch")
+                with col2:
+                    st.text_area(f"Texte ligne {line_num}", value=trans["text"], key=f"text_line_{line_num}", height=68)
+            else:
+                # Mode page entière : pas d'image par ligne
+                st.text_area(f"Ligne {line_num}", value=trans["text"], key=f"text_line_{line_num}", height=68)
             st.divider()
 
 

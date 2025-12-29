@@ -145,6 +145,57 @@ def transcribe_line_qwen(image: Image.Image) -> dict:
     return {"text": text.strip(), "confidence": None}
 
 
+def transcribe_full_page_qwen(image: Image.Image) -> str:
+    """
+    Transcrit une page entière avec Qwen2-VL.
+
+    Args:
+        image: Image PIL de la page complète
+
+    Returns:
+        Texte transcrit de toute la page
+    """
+    model, processor = get_qwen_model_and_processor()
+
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+
+    # Prompt optimisé pour manuscrit complet
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image},
+                {"type": "text", "text": """Transcris intégralement ce document manuscrit français.
+Respecte la mise en page originale (sauts de ligne).
+Transcris exactement ce que tu vois, sans corriger l'orthographe.
+Réponds uniquement avec le texte transcrit, sans commentaire."""}
+            ]
+        }
+    ]
+
+    text_input = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = processor(
+        text=[text_input],
+        images=[image],
+        return_tensors="pt",
+        padding=True
+    )
+
+    # Move to device
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        generated_ids = model.generate(**inputs, max_new_tokens=2048)
+
+    generated_ids_trimmed = [
+        out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs["input_ids"], generated_ids)
+    ]
+    text = processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True)[0]
+
+    return text.strip()
+
+
 def transcribe_line(image: Image.Image, model_key: str = None) -> dict:
     """
     Transcrit une seule ligne de texte manuscrit.
